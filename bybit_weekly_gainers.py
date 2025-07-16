@@ -67,6 +67,9 @@ class BybitWeeklyGainersWidget(QWidget):
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
+        # Контекстное меню подключаем только один раз!
+        self.table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self.show_context_menu)
         layout.addWidget(self.table)
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_table)
@@ -138,8 +141,6 @@ class BybitWeeklyGainersWidget(QWidget):
                         price_item.setForeground(QBrush(QColor(180, 180, 180)))
             self.table.setItem(row, 5, price_item)
         # Контекстное меню оставляем без изменений
-        self.table.setContextMenuPolicy(3)  # Qt.CustomContextMenu
-        self.table.customContextMenuRequested.connect(self.show_context_menu)
 
     def show_context_menu(self, pos):
         from PyQt5.QtWidgets import QMenu, QAction
@@ -148,6 +149,7 @@ class BybitWeeklyGainersWidget(QWidget):
             return
         row = index.row()
         symbol = self.table.item(row, 0).text()
+        category = self.table.item(row, 1).text()
         menu = QMenu(self)
         copy_action = QAction("Скопировать тикер", self)
         tv_action = QAction("Открыть в TradingView", self)
@@ -158,7 +160,10 @@ class BybitWeeklyGainersWidget(QWidget):
             clipboard.setText(symbol)
         def open_tv():
             import webbrowser
-            url = f"https://www.tradingview.com/chart/?symbol=BYBIT:{symbol}"
+            tv_symbol = f"BYBIT:{symbol}"
+            if category == 'linear':
+                tv_symbol += '.P'
+            url = f"https://www.tradingview.com/chart/?symbol={tv_symbol}"
             webbrowser.open(url)
         copy_action.triggered.connect(copy_symbol)
         tv_action.triggered.connect(open_tv)
@@ -236,8 +241,9 @@ class BybitWeeklyGainersWidget(QWidget):
                 klines = data.get('result', {}).get('list', [])
                 if len(klines) < 3:
                     return None, None, None, None
-                prev = klines[-3]
-                last = klines[-2]
+                # Bybit API возвращает массив от новой к старой: [0] - текущая, [1] - последняя завершённая, [2] - предпоследняя завершённая
+                prev = klines[2]  # Неделя 1 (предпоследняя завершённая)
+                last = klines[1]  # Неделя 2 (последняя завершённая)
                 close1 = float(prev[4])
                 close2 = float(last[4])
                 high2 = float(last[2])
